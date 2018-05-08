@@ -4,7 +4,7 @@ package jcstombe.util;
  * @author Josh Stomberg <jcstombe@mtu.edu>
  * Last Modified: May 07, 2018
  */
-public class Format {
+public class ResultStatisticFormat {
 
     private enum Flag {
         NONE('\0'),
@@ -49,12 +49,12 @@ public class Format {
         }
     }
 
-    public static Format floatingPoint() {
-        return new Format(true);
+    public static ResultStatisticFormat floatingPoint() {
+        return new ResultStatisticFormat(true);
     }
 
-    public static Format integer() {
-        return new Format(false);
+    public static ResultStatisticFormat integer() {
+        return new ResultStatisticFormat(false);
     }
 
     private boolean floatingPoint;
@@ -62,7 +62,7 @@ public class Format {
     private int precision;
     private int flags;
 
-    private Format(boolean isFloatingPoint) {
+    private ResultStatisticFormat(boolean isFloatingPoint) {
         floatingPoint = isFloatingPoint;
         width = -1;
         precision = -1;
@@ -73,21 +73,21 @@ public class Format {
         return floatingPoint;
     }
 
-    public Format width(int w) {
+    public ResultStatisticFormat width(int w) {
         if (w > -1) {
             width = w;
         }
         return this;
     }
 
-    public Format precision(int p) {
+    public ResultStatisticFormat precision(int p) {
         if (p > -1 && floatingPoint) {
             precision = p;
         }
         return this;
     }
 
-    public Format flags(Flag... myFlags) {
+    public ResultStatisticFormat flags(Flag... myFlags) {
         for (Flag f : myFlags) {
             if (width == -1 && (f == Flag.ZERO_PAD || f == Flag.LEFT_JUSTIFY)) continue;
             flags = f.and(flags);

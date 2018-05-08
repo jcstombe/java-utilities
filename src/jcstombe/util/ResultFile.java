@@ -9,17 +9,15 @@ import java.util.*;
  * @author Josh Stomberg <jcstombe@mtu.edu>
  * Last Modified: 05 07, 2018
  */
-public class ResultFile {
+public abstract class ResultFile<Ident> {
 
     public class Result {
-        private String modelName, dataId;
+        private Ident resultId;
         private Map<String, Number> statsMap;
 
-        public Result(String modelName, String dataId) {
-            Objects.requireNonNull(modelName, "Model Name cannot be null");
-            Objects.requireNonNull(dataId, "Data ID cannot be null");
-            this.modelName = modelName;
-            this.dataId = dataId;
+        public Result(Ident resultId) {
+            Objects.requireNonNull(resultId, "ResultId cannot be null");
+            this.resultId = resultId;
             statsMap = new HashMap<>();
             ResultFile.this.results.add(this);
         }
@@ -35,7 +33,7 @@ public class ResultFile {
 
         @Override
         public String toString() {
-            StringBuilder out = new StringBuilder(String.format("%s\t%s", modelName, dataId));
+            StringBuilder out = new StringBuilder(printResultId(resultId));
             for (String key : formatMap.keySet()) {
                 try {
                     String statString = String.format('\t' + formatMap.get(key).formatString(), statsMap.get(key));
@@ -50,21 +48,22 @@ public class ResultFile {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof Result) {
+            try {
                 Result other = (Result) obj;
-                return modelName.equals(other.modelName) && dataId.equals(other.dataId);
+                return resultId.equals(other.resultId);
+            } catch (ClassCastException ignored) {
+                return false;
             }
-            return false;
         }
 
         @Override
         public int hashCode() {
-            return modelName.hashCode() ^ dataId.hashCode();
+            return resultId.hashCode();
         }
     }
 
     private File file;
-    private Map<String, Format> formatMap;
+    private Map<String, ResultStatisticFormat> formatMap;
     private Set<Result> results;
 
     public ResultFile(File file) {
@@ -73,7 +72,7 @@ public class ResultFile {
         formatMap = new HashMap<>();
     }
 
-    public void addStatistic(String name, Format format) {
+    public void addStatistic(String name, ResultStatisticFormat format) {
         formatMap.put(name, format);
     }
 
@@ -81,14 +80,18 @@ public class ResultFile {
         Set<String> stats = new LinkedHashSet<>();
         Scanner lineIn = new Scanner(headerLine);
         lineIn.useDelimiter("\t");
-        String token = lineIn.next();
-        if (!"Model Name".equals(token)) throw new RuntimeException("Result File Format Exception");
-        token = lineIn.next();
-        if (!"Fold".equals(token)) throw new RuntimeException("Result File Format Exception");
-        while (lineIn.hasNext()) {
-            stats.add(lineIn.next());
+        if (validResultIdHeader(lineIn)) {
+            while (lineIn.hasNext()) {
+                stats.add(lineIn.next());
+            }
+        } else {
+            throw new RuntimeException("Result File Format Exception: Invalid Result Id Header");
         }
         return stats;
+    }
+
+    public boolean contains(Result r) {
+        return results.contains(r);
     }
 
     public void readResults() {
@@ -97,12 +100,11 @@ public class ResultFile {
             Set<String> fileStats = readHeaderLine(fileIn.nextLine());
             while (fileIn.hasNextLine()) {
                 Scanner lineIn = new Scanner(fileIn.nextLine());
+                Ident resultId = readResultId(lineIn);
                 lineIn.useDelimiter("\t");
-                String modelName = lineIn.next();
-                String foldId = lineIn.next();
-                Result r = new Result(modelName, foldId);
+                Result r = new Result(resultId);
                 for (String key : fileStats) {
-                    Format format = formatMap.get(key);
+                    ResultStatisticFormat format = formatMap.get(key);
                     if (format == null) {
                         lineIn.next();
                     } else if (format.isFloatingPoint()) {
@@ -113,18 +115,17 @@ public class ResultFile {
                 }
                 results.add(r);
             }
-        } catch (FileNotFoundException | NoSuchElementException ignored) {
+        } catch (FileNotFoundException e) {
+            Log.info("Missing Results File: %s. No results loaded", file.getName());
+        } catch (NoSuchElementException e) {
+            Log.warn("Result File Format Error: Missing Element");
         } catch (RuntimeException e) {
             Log.warn(e.getMessage());
         }
     }
 
-    public boolean contains(Result r) {
-        return results.contains(r);
-    }
-
     private void printHeaderLine(PrintStream out) {
-        out.print("Model Name\tFold");
+        out.print(printResultIdHeader());
         formatMap.keySet().forEach((statName) -> out.print('\t' + statName));
     }
 
@@ -135,4 +136,12 @@ public class ResultFile {
         } catch (FileNotFoundException ignored) {
         }
     }
+
+    public abstract String printResultId(Ident resultId);
+
+    public abstract String printResultIdHeader();
+
+    public abstract Ident readResultId(Scanner in);
+
+    public abstract boolean validResultIdHeader(Scanner in);
 }
